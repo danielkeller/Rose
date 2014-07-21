@@ -1,0 +1,9 @@
+dist
+*.swp
+*.prof
+*.dump-prep
+*sublime*
+api
+script
+.cabal-sandbox
+cabal.sandbox.config
