@@ -5,6 +5,7 @@ module Main (
 import qualified Graphics.UI.GLFW as GLFW
 
 import Window
+import Wavefront
 
 keyCB :: GLFW.KeyCallback
 keyCB wnd GLFW.Key'Escape _ _ _ = GLFW.setWindowShouldClose wnd True

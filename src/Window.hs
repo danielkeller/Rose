@@ -13,7 +13,6 @@ resizeCB :: WindowSizeCallback
 resizeCB _ w h = viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
 
 type Action = Window -> IO DrawFun
-type DrawFun = Float -> IO ()
 
 withWindow :: Action -> IO ()
 withWindow action = 
