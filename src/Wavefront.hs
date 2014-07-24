@@ -1,37 +1,52 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Wavefront (
-    wavefrontObject,
+    loadWavefront
 ) where
 
 import GHC.Float (double2Float)
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Storable as V
+import Foreign.Storable
+import Foreign.Ptr(castPtr)
 import Linear.GL
 import Linear
 import Control.Applicative
-import Data.Vinyl
-import Data.Vinyl.Universe
+import Control.Monad
 
 import qualified Math.Mesh as M (TriInd(..))
-import Graphics
+import qualified Graphics as G
 import Render
+import Attributes
 
-loadWavefront :: FilePath -> ShaderProgram -> IO Renderable
-loadWavefront file shdr = do
+data WavefrontVert = WavefrontVert Vec3 Vec3 Vec2
+
+instance V.Storable WavefrontVert where
+    sizeOf _ = 8 * (sizeOf (undefined :: G.CFloat))
+    alignment _ = alignment (undefined :: G.CFloat)
+    peek ptr = do [vx, vy, vz, nx, ny, nz, u, v] <- mapM (peekElemOff (castPtr ptr)) [0..7]
+                  return $ WavefrontVert (V3 vx vy vz) (V3 nx ny nz) (V2 u v)
+    poke ptr (WavefrontVert (V3 vx vy vz) (V3 nx ny nz) (V2 u v)) =
+            zipWithM_ (pokeElemOff (castPtr ptr)) [0..7] [vx, vy, vz, nx, ny, nz, u, v] 
+
+instance VertexAttribs WavefrontVert where
+    schema _ = [ AttribProperties "position" 3 G.Float 0
+               , AttribProperties "normal"   3 G.Float (3*floatSize)
+               , AttribProperties "texCoord" 2 G.Float (6*floatSize)]
+        where floatSize = sizeOf (undefined :: G.CFloat)
+    position (WavefrontVert pos _ _) = pos
+
+loadWavefront :: G.ShaderProgram -> FilePath -> IO Renderable
+loadWavefront shdr file = do
     recs <- fromEither file . parseOnly parseObj <$> B.readFile file
     let vs = [r | V r <- recs]
-        vns = [r | VN r <- recs] ++ repeat (singleton 0)
-        vts = [r | VT r <- recs] ++ repeat (singleton 0)
-        verts = zipWith (<+>) (zipWith (<+>) vs vns) vts
+        vns = [r | VN r <- recs] ++ repeat 0
+        vts = [r | VT r <- recs] ++ repeat 0
+        verts = zipWith3 WavefrontVert vs vns vts
     makeObject (V.fromList verts) (V.fromList [f | F f <- recs]) shdr
 
--- the types of information that .obj files support
-type NormRec = PlainFieldRec '["normal" ::: Vec3]
-type TexRec = PlainFieldRec '["texCoord" ::: Vec2]
-
 -- obj file lines
-data WfLine = V (PlainFieldRec '[Pos]) | VN NormRec | VT TexRec | F M.TriInd
+data WfLine = V Vec3 | VN Vec3 | VT Vec2 | F M.TriInd
             -- | MtlLib String | UseMtl String
             | Junk
 
@@ -48,9 +63,9 @@ parseObj =  many ((V <$> parseVert) <|> (F <$> parseFace) <|> (VN <$> parseNorm)
 
         thenFloat = CFloat . double2Float <$> (double <* skipSpace)
 
-        parseVert = singleton <$> "v " .*> (liftA3 V3) thenFloat thenFloat thenFloat
-        parseNorm = singleton <$> "vn " .*> (liftA3 V3) thenFloat thenFloat thenFloat
-        parseTex = singleton <$> "vt " .*> (liftA2 V2) thenFloat thenFloat
+        parseVert = "v " .*> (liftA3 V3) thenFloat thenFloat thenFloat
+        parseNorm = "vn " .*> (liftA3 V3) thenFloat thenFloat thenFloat
+        parseTex = "vt " .*> (liftA2 V2) thenFloat thenFloat
 
         --parseMtl = MtlLib . B.unpack <$> (string "mtllib " *> takeTill isSpace <* skipSpace)
         --parseUseMtl = UseMtl . B.unpack <$> (string "usemtl " *> takeTill isSpace <* skipSpace)
@@ -63,5 +78,3 @@ parseObj =  many ((V <$> parseVert) <|> (F <$> parseFace) <|> (VN <$> parseNorm)
 fromEither :: String -> Either String b -> b
 fromEither message (Left err) = error $ message ++ ": " ++ err
 fromEither _ (Right res) = res
-
-singleton = (SField =:)

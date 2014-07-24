@@ -3,7 +3,9 @@
 module Linear.GL(
     Vec2, Vec3, Vec4,
     Mat2, Mat3, Mat4,
-    CFloat(..)
+    CFloat(..),
+
+    perspective
 ) where
 
 import qualified Graphics.Rendering.OpenGL as GL
@@ -32,3 +34,11 @@ instance Bounded a => Bounded (V3 a) where
 instance Bounded a => Bounded (V4 a) where
     minBound = V4 minBound minBound minBound minBound
     maxBound = V4 maxBound maxBound maxBound maxBound
+
+perspective :: Floating a => a -> a -> a -> a -> M44 a
+perspective near far fovx aspect = V4 (V4 (1/tanHalfFovx) 0 0 0)
+                                      (V4 0 (aspect/tanHalfFovx) 0 0)
+                                      (V4 0 0 ((far+near)*dst) (2*far*near*dst))
+                                      (V4 0 0 (-1) 0)
+    where tanHalfFovx = tan (fovx / 2)
+          dst = 1/(near - far)

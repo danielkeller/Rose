@@ -2,7 +2,6 @@
 module Render (
     Renderable(..),
 
-    Pos,
     makeWireframe,
     makeObject,
     drawObject,
@@ -10,73 +9,61 @@ module Render (
 
 import qualified Data.Vector.Storable as V
 import Foreign.Ptr(nullPtr)
-import Data.Vinyl
-import Data.Vinyl.Universe
 
-import Graphics
+import qualified Graphics as G
 import Math.Mesh
 import Types
+import Attributes
 
 data Renderable = Renderable { objMesh :: Mesh
-                             , objVAO :: VertexArrayObject
+                             , objVAO :: G.VertexArrayObject
                              , objDraw :: IO ()
                              , freeObject :: IO ()
-                             , objShader :: ShaderProgram
+                             , objShader :: G.ShaderProgram
                              }
 
-type Pos = SField ("position" ::: Vec3)
-pos :: Pos
-pos = SField
-
---type ViableVertex t = (HasFieldNames t, HasFieldSizes t, HasFieldDims t,
---                       HasFieldGLTypes t, V.Storable t)
-
 -- | Make a simple wireframe from a line list
-makeWireframe :: (ViableVertex (PlainFieldRec rs), BufferSource (V.Vector (PlainFieldRec rs)), Pos `IElem` rs)
-              => V.Vector (PlainFieldRec rs) -> ShaderProgram -> IO Renderable
+makeWireframe :: VertexAttribs a => V.Vector a -> G.ShaderProgram -> IO Renderable
 makeWireframe verts shdr = do
     vertBuf <- bufferVertices verts
-    vao <- makeVAO $ do
-        enableVertices' shdr vertBuf
-        bindVertices vertBuf
+    vao <- G.makeVAO $ do
+        setVertices vertBuf shdr
     return Renderable { objMesh = mesh
                       , objVAO = vao
-                      , objDraw = drawArrays Lines 0 (fromIntegral (V.length verts))
+                      , objDraw = G.drawArrays G.Lines 0 (fromIntegral (V.length verts))
                       , objShader = shdr
                       , freeObject = do
-                            deleteObjectNames [vao]
+                            G.deleteObjectNames [vao]
                             deleteVertices vertBuf
                       }
     where mesh = error "Please do not use this :)"
 
 -- | Make an object with indices and attributes
-makeObject :: (ViableVertex (PlainFieldRec rs), BufferSource (V.Vector (PlainFieldRec rs)), Pos `IElem` rs)
-              => V.Vector (PlainFieldRec rs) -> V.Vector TriInd -> ShaderProgram -> IO Renderable
+makeObject :: VertexAttribs a => V.Vector a -> V.Vector TriInd -> G.ShaderProgram -> IO Renderable
 makeObject verts faces shdr = do
     vertBuf <- bufferVertices verts
-    indBuf <- bufferIndices faceWords
-    vao <- makeVAO $ do
-        enableVertices' shdr vertBuf --this doesn't complain about extra attributes
-        bindVertices vertBuf
-        bindBuffer ElementArrayBuffer $= Just indBuf
+    indBuf <- G.bufferIndices faceWords
+    vao <- G.makeVAO $ do
+        setVertices vertBuf shdr
+        G.bindBuffer G.ElementArrayBuffer G.$= Just indBuf
     return Renderable { objMesh = mesh
                       , objVAO = vao
-                      , objDraw = drawElements Triangles (fromIntegral (V.length faceWords)) UnsignedInt nullPtr
+                      , objDraw = G.drawElements G.Triangles (fromIntegral (V.length faceWords)) G.UnsignedInt nullPtr
                       , objShader = shdr
                       , freeObject = do
-                            deleteObjectNames [vao]
+                            G.deleteObjectNames [vao]
                             deleteVertices vertBuf
-                            deleteObjectNames [indBuf]
+                            G.deleteObjectNames [indBuf]
                       }
-    where mesh = undefined --Mesh (V.map (rGet pos) verts) faces
-          faceWords :: V.Vector Word32
+    where mesh = Mesh (V.map position verts) faces
+          faceWords :: V.Vector G.Word32
           faceWords = V.unsafeCast faces
 
 --Shader
 drawObject :: Renderable -> UnifSetter -> DrawFun
 drawObject object unifs alpha =
-    withVAO vao $ do
-        currentProgram $= Just (program shdr)
+    G.withVAO vao $ do
+        G.currentProgram G.$= Just (G.program shdr)
         unifs shdr alpha
         drawIt
     where Renderable {objVAO = vao, objDraw = drawIt, objShader = shdr} = object
