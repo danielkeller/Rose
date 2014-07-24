@@ -18,6 +18,7 @@ import qualified Math.Mesh as M (TriInd(..))
 import qualified Graphics as G
 import Render
 import Attributes
+import Math.Mesh (Mesh(..))
 
 data WavefrontVert = WavefrontVert Vec3 Vec3 Vec2
 
@@ -34,16 +35,18 @@ instance VertexAttribs WavefrontVert where
                , AttribProperties "normal"   3 G.Float (3*floatSize)
                , AttribProperties "texCoord" 2 G.Float (6*floatSize)]
         where floatSize = sizeOf (undefined :: G.CFloat)
-    position (WavefrontVert pos _ _) = pos
 
-loadWavefront :: G.ShaderProgram -> FilePath -> IO Renderable
+loadWavefront :: G.ShaderProgram -> FilePath -> IO (Renderable, Mesh)
 loadWavefront shdr file = do
     recs <- fromEither file . parseOnly parseObj <$> B.readFile file
     let vs = [r | V r <- recs]
         vns = [r | VN r <- recs] ++ repeat 0
         vts = [r | VT r <- recs] ++ repeat 0
         verts = zipWith3 WavefrontVert vs vns vts
-    makeObject (V.fromList verts) (V.fromList [f | F f <- recs]) shdr
+        faces = V.fromList [f | F f <- recs]
+    obj <- makeObject (V.fromList verts) faces shdr
+    let mesh = Mesh (V.fromList vs) faces
+    return (obj, mesh)
 
 -- obj file lines
 data WfLine = V Vec3 | VN Vec3 | VT Vec2 | F M.TriInd

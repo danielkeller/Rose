@@ -14,9 +14,10 @@ import Types
 resizeCB :: WindowSizeCallback
 resizeCB _ w h = viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
 
-type Action = Window -> IO (IO DrawFun)
+type Action a = a -> IO (DrawFun, a)
+type Setup a = Window -> IO (Action a, a)
 
-withWindow :: Action -> IO ()
+withWindow :: Setup a -> IO ()
 withWindow action = 
     do res <- GLFW.init
        setErrorCallback (Just (const error))
@@ -33,15 +34,16 @@ withWindow action =
               cullFace $= Just Back
               depthFunc $= Just Less
               back <- getCurrentTime
-              tick <- action wnd
-              mainLoop wnd back (addUTCTime dt back) (const (return ())) tick
+              (tick, st) <- action wnd
+              mainLoop wnd back (addUTCTime dt back) (const (return ())) tick st
             `finally` destroyWindow wnd
 
-mainLoop :: Window -> UTCTime -> UTCTime -> DrawFun -> IO DrawFun -> IO ()
+mainLoop :: Window -> UTCTime -> UTCTime -> DrawFun -> Action a -> a -> IO ()
 mainLoop wnd back -- completed time
              front -- end of current tick
              drawfn -- current render action
-             tick -- current physics state
+             tick -- simluation function
+             st -- simulation state
   = do
     now <- getCurrentTime
     let back' = min (addUTCTime 0.25 back) now
@@ -52,10 +54,10 @@ mainLoop wnd back -- completed time
         --we have enough unsimulated time to need a new physics step
         then do
             pollEvents
-            drawfn' <- tick 
+            (drawfn', st') <- tick st
             let front' = addUTCTime dt back'
             --putStrLn $ "Sim " ++ show (utctDayTime back') ++ " -> " ++ show (utctDayTime front')
-            mainLoop wnd back' front' drawfn' tick
+            mainLoop wnd back' front' drawfn' tick st'
         --the current draw action is still fresh
         else do
             clear [ColorBuffer, DepthBuffer]
@@ -64,7 +66,4 @@ mainLoop wnd back -- completed time
             drawfn alpha
             swapBuffers wnd
             --putStrLn $ "Draw " ++ show (utctDayTime back') ++ " -> " ++ show (utctDayTime front)
-            mainLoop wnd back' front drawfn tick
-
-dt :: Fractional a => a
-dt = 0.03
+            mainLoop wnd back' front drawfn tick st

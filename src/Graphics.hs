@@ -6,7 +6,7 @@ module Graphics (
     setUniform
 ) where
 
-import Graphics.Rendering.OpenGL hiding (Shader, Uniform, perspective)
+import Graphics.Rendering.OpenGL hiding (Shader, Uniform, perspective, position, scale)
 import Graphics.GLUtil hiding (setUniform)
 import Linear.GL
 

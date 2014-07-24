@@ -22,7 +22,6 @@ data AttribProperties = AttribProperties { attrib :: String
 
 class Storable a => VertexAttribs a where
     schema :: a -> [AttribProperties]
-    position :: a -> Vec3
 
 newtype BufferedVerts a = BufferedVerts { unBufferedVerts :: BufferObject }
 

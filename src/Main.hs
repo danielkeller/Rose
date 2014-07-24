@@ -4,6 +4,7 @@ module Main (
 
 import qualified Graphics.UI.GLFW as GLFW
 import Linear
+import Data.List(zipWith4)
 
 import Window
 import Wavefront
@@ -16,27 +17,28 @@ keyCB :: GLFW.KeyCallback
 keyCB wnd GLFW.Key'Escape _ _ _ = GLFW.setWindowShouldClose wnd True
 keyCB _ _ _ _ _ = return ()
 
-draw :: G.Mat4 -> [UnifSetter] -> [Renderable] -> [G.Mat4] -> DrawFun
-draw camera unifs meshes xfrms alpha = sequence_ $ zipWith3 draw1 unifs meshes xfrms
-    where draw1 unif mesh xfrm = do
+draw :: G.Mat4 -> [UnifSetter] -> [Renderable] -> [G.Xform] -> [G.Xform] -> DrawFun
+draw camera unifs meshes xfrms oldXfrms alpha = sequence_ $ zipWith4 draw1 unifs meshes xfrms oldXfrms
+    where draw1 unif mesh xfrm oldXfrm = do
               let unifset shdr' alpha' = do unif shdr alpha
-                                            G.setUniform shdr' "modelView" (camera !*! xfrm)
+                                            let xfrmMat = G.toMat4 (G.slide alpha oldXfrm xfrm)
+                                            G.setUniform shdr' "modelView" (camera !*! xfrmMat)
               drawObject mesh unifset alpha
               where shdr = objShader mesh
 
 main :: IO ()
-main = withWindow help
-    where help wnd = do
-              GLFW.setKeyCallback wnd (Just keyCB)
-              shdr <- G.simpleShaderProgram "assets/simple.vert" "assets/simple.frag"
-              obj <- loadWavefront shdr "assets/capsule.obj"
-              tex <- loadTex "assets/capsule.png"
-              return $ do
-                  (fbWidth, fbHeight) <- GLFW.getFramebufferSize wnd
-                  let camera = G.perspective 0.1 100 (pi/2) (fromIntegral fbWidth / fromIntegral fbHeight)
-                      xfrm = mkTransformation (axisAngle (V3 0 1 0) (pi/2))  (V3 0 0 (-3))
-                      unif shdr' alpha = do
-                          G.activeTexture G.$= G.TextureUnit 0
-                          G.textureBinding G.Texture2D G.$= Just tex
-                          G.setUniform shdr' "tex" (0 :: G.GLint)
-                  return (draw camera [unif] [obj] [xfrm])
+main = withWindow $ \wnd -> do
+    GLFW.setKeyCallback wnd (Just keyCB)
+    shdr <- G.simpleShaderProgram "assets/simple.vert" "assets/simple.frag"
+    (obj, _) <- loadWavefront shdr "assets/capsule.obj"
+    tex <- loadTex "assets/capsule.png"
+    let xfrm = G.Xform (V3 0 0 (-3)) (axisAngle (V3 0 1 0) (pi/2)) 1
+    let tick xfrm' = do
+        (fbWidth, fbHeight) <- GLFW.getFramebufferSize wnd
+        let camera = G.perspective 0.1 100 (pi/2) (fromIntegral fbWidth / fromIntegral fbHeight)
+            unif shdr' alpha = do
+                G.activeTexture G.$= G.TextureUnit 0
+                G.textureBinding G.Texture2D G.$= Just tex
+                G.setUniform shdr' "tex" (0 :: G.GLint)
+        return (draw camera [unif] [obj] [xfrm'] [xfrm'], xfrm')
+    return (tick, xfrm)
