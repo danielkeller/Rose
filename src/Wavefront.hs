@@ -22,7 +22,7 @@ import Math.Mesh (Mesh(..))
 
 data WavefrontVert = WavefrontVert Vec3 Vec3 Vec2
 
-instance V.Storable WavefrontVert where
+instance Storable WavefrontVert where
     sizeOf _ = 8 * (sizeOf (undefined :: G.CFloat))
     alignment _ = alignment (undefined :: G.CFloat)
     peek ptr = do [vx, vy, vz, nx, ny, nz, u, v] <- mapM (peekElemOff (castPtr ptr)) [0..7]

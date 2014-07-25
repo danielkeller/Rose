@@ -39,11 +39,8 @@ intersects a b = isOverlap `all` axs
           overlaps (l, r) (l', r') = l' <= r && r' >= l
           isOverlap ax = project a ax `overlaps` project b ax
 
-
---this kind of crap would likely be better if I were using Vec...
 boxIntersect :: Box -> Box -> Box
-boxIntersect (Box (V3 lx ly lz) (V3 hx hy hz)) (Box (V3 lx' ly' lz') (V3 hx' hy' hz')) =
-    (Box (V3 (max lx lx') (max ly ly') (max lz lz')) (V3 (min hx hx') (min hy hy') (min hz hz')))
+boxIntersect (Box a b) (Box a' b') = liftI2 max a a' `Box` liftI2 min b b'
 
 centroid :: Tri -> Vec3
 centroid (Tri a b c) = (a ^+^ b ^+^ c) ^/ 3

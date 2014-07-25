@@ -5,7 +5,8 @@ module Linear.GL(
     Mat2, Mat3, Mat4,
     CFloat(..),
 
-    Xform(..), slide, toMat4,
+    Xform(..), position, rotation, scale,
+    slide, toMat4,
 
     perspective
 ) where
@@ -39,10 +40,19 @@ instance Bounded a => Bounded (V4 a) where
     minBound = V4 minBound minBound minBound minBound
     maxBound = V4 maxBound maxBound maxBound maxBound
 
-data Xform = Xform { position :: Vec3
-                   , rotation :: Quat
-                   , scale :: CFloat}
+data Xform = Xform Vec3 Quat CFloat
     deriving Show
+
+--lenses
+
+position :: Functor f => (Vec3 -> f Vec3) -> Xform -> f (Xform)
+position f (Xform pos rot scl) = fmap (\pos' -> Xform pos' rot scl) (f pos)
+
+rotation :: Functor f => (Quat -> f Quat) -> Xform -> f (Xform)
+rotation f (Xform pos rot scl) = fmap (\rot' -> Xform pos rot' scl) (f rot)
+
+scale :: Functor f => (CFloat -> f CFloat) -> Xform -> f (Xform)
+scale f (Xform pos rot scl) = fmap (\scl' -> Xform pos rot scl') (f scl)
 
 -- | (s)lerp for transforms
 slide :: CFloat -> Xform -> Xform -> Xform
