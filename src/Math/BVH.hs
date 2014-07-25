@@ -13,7 +13,7 @@ import Math.Shapes
 import qualified Math.Mesh as M
 
 bound :: M.Mesh -> Box
-bound m = Box (M.minimum m) (M.maximum m)
+bound m = Box (M.minBoundBoxPt m) (M.maxBoundBoxPt m)
 
 --This would probably be more efficient in a vector
 data AABB = Node !Box AABB AABB

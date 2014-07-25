@@ -39,6 +39,8 @@ intersects a b = isOverlap `all` axs
           overlaps (l, r) (l', r') = l' <= r && r' >= l
           isOverlap ax = project a ax `overlaps` project b ax
 
+{-# SPECIALIZE intersects :: Box -> Tri -> Bool #-}
+
 boxIntersect :: Box -> Box -> Box
 boxIntersect (Box a b) (Box a' b') = liftI2 max a a' `Box` liftI2 min b b'
 
@@ -63,6 +65,7 @@ instance Collide Tri where
 
 instance Collide Box where
     axes _ = basis --it's axis aligned!
+    {-# INLINE project #-}
     project (Box a b) ax@(V3 x y z) = (min l r, max l r)
         --there are 4 possible pairs of point depending on the direction of ax
               --partially apply just x and y to the constructor in c' and d'

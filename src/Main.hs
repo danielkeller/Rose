@@ -39,7 +39,8 @@ main = withWindow $ \wnd -> do
     shdr <- G.simpleShaderProgram "assets/simple.vert" "assets/simple.frag"
     (obj, mesh) <- loadWavefront shdr "assets/capsule.obj"
     bvhObj <- drawAABB (buildBVH mesh)
-    tex <- loadTex "assets/capsule.png"
+    tex <- undefined --loadTex "assets/capsule.png"
+    GLFW.setWindowShouldClose wnd True
     let xfrm1 = G.Xform (V3 0 0 (-3)) (axisAngle (V3 0 1 0) (pi/2)) 1
     let tick xfrm = do
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize wnd

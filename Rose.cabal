@@ -14,10 +14,10 @@ cabal-version:       >=1.8
 executable Rose
   main-is:             Main.hs
   hs-source-dirs:      src
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -fprof-auto
   other-modules:       Attributes
   -- lens and linear have a *TON* of dependencies :(
   build-depends:       base > 3 && < 5, GLFW-b, OpenGL >= 2.9.1, linear == 1.6,
                        vector, attoparsec, bytestring, GLUtil, containers, time >= 1.4.2,
-                       vector-algorithms, lens
+                       vector-algorithms, lens, collections-api
   extra-libraries:     OpenGL32
