@@ -36,9 +36,9 @@ noUnifs _ _ = return ()
 main :: IO ()
 main = withWindow $ \wnd -> do
     GLFW.setKeyCallback wnd (Just keyCB)
-    shdr <- G.simpleShaderProgram "assets/simple.vert" "assets/simple.frag"
-    (obj, mesh) <- loadWavefront shdr "assets/capsule.obj"
-    bvhObj <- drawAABB (buildBVH mesh)
+    shdr <- {-# SCC "simpleShaderProgram" #-} G.simpleShaderProgram "assets/simple.vert" "assets/simple.frag"
+    (obj, mesh) <- {-# SCC "loadWavefront" #-} loadWavefront shdr "assets/capsule.obj"
+    bvhObj <- {-# SCC "drawAABB" #-} drawAABB (buildBVH mesh)
     tex <- undefined --loadTex "assets/capsule.png"
     GLFW.setWindowShouldClose wnd True
     let xfrm1 = G.Xform (V3 0 0 (-3)) (axisAngle (V3 0 1 0) (pi/2)) 1

@@ -33,11 +33,11 @@ class Collide a where
     project :: a -> Vec3 -> (CFloat, CFloat)
 
 intersects :: (Collide a, Collide b) => a -> b -> Bool
-intersects a b = isOverlap `all` axs
-    where axs = axes a ++ axes b
+intersects a b = {-# SCC "intersects" #-} isOverlap `all` axs
+    where axs = {-# SCC "intersects.axs" #-} axes a ++ axes b
           --do the line segments overlap?
-          overlaps (l, r) (l', r') = l' <= r && r' >= l
-          isOverlap ax = project a ax `overlaps` project b ax
+          overlaps (l, r) (l', r') = {-# SCC "intersects.overlaps" #-} l' <= r && r' >= l
+          isOverlap ax = {-# SCC "intersects.isOverlap" #-} project a ax `overlaps` project b ax
 
 {-# SPECIALIZE intersects :: Box -> Tri -> Bool #-}
 
@@ -53,24 +53,28 @@ instance Collide Vec3 where
 
 instance Collide Tri where
     --face normal, and edge normals
-    axes (Tri q r s) = map normalize (face : edges)
-        where face = (q ^-^ r) `cross` (s ^-^ r)
-              edges = map (face `cross`) [q ^-^ r, r ^-^ s, s ^-^ q]
+    {-# INLINE axes #-}
+    axes (Tri q r s) = {-# SCC "Tri.axes" #-} map normalize (face : edges)
+        where face = {-# SCC "Tri.axes.face" #-} (q ^-^ r) `cross` (s ^-^ r)
+              edges ={-# SCC "Tri.axes.edges" #-} map (face `cross`) [q ^-^ r, r ^-^ s, s ^-^ q]
 
-    project (Tri q r s) ax = (minimum projs, maximum projs)
-        where projs = map (dot ax) [q, r, s]
+    {-# INLINE project #-}
+    project (Tri q r s) ax = {-# SCC "Tri.project" #-} (minimum projs, maximum projs)
+        where projs = {-# SCC "Tri.project.projs" #-} map (dot ax) [q, r, s]
 
 --AABBs always have the same axes, obviously
 {-# RULES "axes/AABB" forall a b. axes (a::Box) ++ axes (b::Box) = axes a #-}
 
 instance Collide Box where
-    axes _ = basis --it's axis aligned!
+    {-# INLINE axes #-}
+    axes _ = {-# SCC "Box.axes" #-} basis --it's axis aligned!
+
     {-# INLINE project #-}
-    project (Box a b) ax@(V3 x y z) = (min l r, max l r)
+    project (Box a b) ax@(V3 x y z) = {-# SCC "Box.project" #-} (min l r, max l r)
         --there are 4 possible pairs of point depending on the direction of ax
               --partially apply just x and y to the constructor in c' and d'
-        where (c', d') | x*y > 0 = (V3 (a^._x) (a^._y), V3 (b^._x) (b^._y)) --same x and y
-                       | otherwise = (V3 (a^._x) (b^._y), V3 (b^._x) (a^._y)) --different x and y
-              (c, d)   | x*z > 0 = (c' (a^._z), d' (b^._z)) --same x and z
-                       | otherwise = (c' (b^._z), d' (a^._z)) --different x and z
-              (l, r) = (c `dot` ax, d `dot` ax)
+        where (c', d') | x*y > 0 = {-# SCC "Box.project.(c',d')" #-} (V3 (a^._x) (a^._y), V3 (b^._x) (b^._y)) --same x and y
+                       | otherwise = {-# SCC "Box.project.(c',d')" #-} (V3 (a^._x) (b^._y), V3 (b^._x) (a^._y)) --different x and y
+              (c, d)   | x*z > 0 = {-# SCC "Box.project.(c,d)" #-} (c' (a^._z), d' (b^._z)) --same x and z
+                       | otherwise = {-# SCC "Box.project.(c,d)" #-} (c' (b^._z), d' (a^._z)) --different x and z
+              (l, r) = {-# SCC "Box.project.(l,r)" #-} (c `dot` ax, d `dot` ax)
