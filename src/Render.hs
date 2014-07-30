@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, TypeOperators, ConstraintKinds, FlexibleContexts #-}
+{-# LANGUAGE DataKinds, TypeOperators, ConstraintKinds, FlexibleContexts, DeriveDataTypeable #-}
 module Render (
     Renderable(..),
 
@@ -9,6 +9,8 @@ module Render (
 
 import qualified Data.Vector.Storable as V
 import Foreign.Ptr(nullPtr)
+import Control.Monad.Trans.Class
+import Data.Typeable(Typeable)
 
 import qualified Graphics as G
 import Math.Mesh
@@ -20,6 +22,7 @@ data Renderable = Renderable { objVAO :: G.VertexArrayObject
                              , freeObject :: IO ()
                              , objShader :: G.ShaderProgram
                              }
+    deriving Typeable
 
 -- | Make a simple wireframe from a line list
 makeWireframe :: VertexAttribs a => V.Vector a -> G.ShaderProgram -> IO Renderable
@@ -56,8 +59,8 @@ makeObject verts faces shdr = do
 
 --Shader
 drawObject :: Renderable -> UnifSetter -> DrawFun
-drawObject object unifs alpha =
-    G.withVAO vao $ do
+drawObject object (UnifSetter unifs) alpha =
+    lift $ G.withVAO vao $ do
         G.currentProgram G.$= Just (G.program shdr)
         unifs shdr alpha
         drawIt

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | OpenGL type synonyms
 module Linear.GL(
@@ -14,6 +15,7 @@ module Linear.GL(
 import qualified Graphics.Rendering.OpenGL as GL
 import Foreign.C.Types(CFloat(..))
 import Linear
+import Data.Typeable(Typeable)
 
 type Vec2 = V2 GL.GLfloat
 type Vec3 = V3 GL.GLfloat
@@ -41,7 +43,7 @@ instance Bounded a => Bounded (V4 a) where
     maxBound = V4 maxBound maxBound maxBound maxBound
 
 data Xform = Xform Vec3 Quat CFloat
-    deriving Show
+    deriving (Show, Typeable)
 
 --lenses
 

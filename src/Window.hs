@@ -5,19 +5,21 @@ module Window (
 
 import GHC.IO.Encoding (setForeignEncoding, utf8)
 import Graphics.UI.GLFW as GLFW
+import Control.Monad.Trans.Class
 import Control.Exception
 import Control.Monad
 import Data.Time
 import Graphics
 import Types
+import Globals
 
 resizeCB :: WindowSizeCallback
 resizeCB _ w h = viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
 
-type Action a = a -> IO (DrawFun, a)
-type Setup a = Window -> IO (Action a, a)
+type Action = GlobalsT IO DrawFun
+type Setup = Window -> GlobalsT IO Action
 
-withWindow :: Setup a -> IO ()
+withWindow :: Setup -> IO ()
 withWindow action = 
     do res <- GLFW.init
        setErrorCallback (Just (const error))
@@ -34,36 +36,36 @@ withWindow action =
               cullFace $= Just Back
               depthFunc $= Just Less
               back <- getCurrentTime
-              (tick, st) <- action wnd
-              mainLoop wnd back (addUTCTime dt back) (const (return ())) tick st
+              evalGlobalsT $ do
+                  tick <- action wnd
+                  mainLoop wnd back (addUTCTime dt back) (const (return ())) tick
             `finally` destroyWindow wnd
 
-mainLoop :: Window -> UTCTime -> UTCTime -> DrawFun -> Action a -> a -> IO ()
+mainLoop :: Window -> UTCTime -> UTCTime -> DrawFun -> Action -> GlobalsT IO ()
 mainLoop wnd back -- completed time
              front -- end of current tick
              drawfn -- current render action
              tick -- simluation function
-             st -- simulation state
   = do
-    now <- getCurrentTime
+    now <- lift getCurrentTime
     let back' = min (addUTCTime 0.25 back) now
-    printError --pausing with GDebugger here breaks the main loop
-    close <- windowShouldClose wnd
+    lift printError --pausing with GDebugger here breaks the main loop
+    close <- lift $ windowShouldClose wnd
     
     unless close $ if back' >= front
         --we have enough unsimulated time to need a new physics step
         then do
-            pollEvents
-            (drawfn', st') <- tick st
+            lift $ pollEvents
+            drawfn' <- tick
             let front' = addUTCTime dt back'
             --putStrLn $ "Sim " ++ show (utctDayTime back') ++ " -> " ++ show (utctDayTime front')
-            mainLoop wnd back' front' drawfn' tick st'
+            mainLoop wnd back' front' drawfn' tick
         --the current draw action is still fresh
         else do
-            clear [ColorBuffer, DepthBuffer]
+            lift $ clear [ColorBuffer, DepthBuffer]
             --the alpha is the amount of the physics step we have left to display
             let alpha = 1 - (realToFrac $ front `diffUTCTime` back) / dt
             drawfn alpha
-            swapBuffers wnd
+            lift $ swapBuffers wnd
             --putStrLn $ "Draw " ++ show (utctDayTime back') ++ " -> " ++ show (utctDayTime front)
-            mainLoop wnd back' front drawfn tick st
+            mainLoop wnd back' front drawfn tick
