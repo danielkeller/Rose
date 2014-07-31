@@ -1,12 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module Object where
 
 import Data.List ((\\))
 import qualified Data.Set as S
-import Data.Typeable(Typeable)
 
 newtype Object = Object Int
-    deriving (Eq, Ord, Show, Typeable)
+    deriving (Eq, Ord, Show)
 
 instance Enum Object where
     toEnum = Object
@@ -14,6 +12,7 @@ instance Enum Object where
 
 type Scene = S.Set Object
 
+emptyScene :: Scene
 emptyScene = S.empty
 
 newObject :: Scene -> (Scene, Object)

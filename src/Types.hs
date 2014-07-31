@@ -1,17 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Types (
     DrawFun,
-    UnifSetter(..),
+    UnifSetter,
     dt,
 ) where
 
 import Graphics (ShaderProgram, GLfloat)
-import Globals
-import Data.Typeable(Typeable)
 
-type DrawFun = GLfloat -> GlobalsT IO ()
-newtype UnifSetter = UnifSetter {unifSetter :: ShaderProgram -> GLfloat -> IO ()}
-    deriving Typeable
+type DrawFun = GLfloat -> IO ()
+type UnifSetter = ShaderProgram -> GLfloat -> IO ()
 
 dt :: Fractional a => a
 dt = 0.03
