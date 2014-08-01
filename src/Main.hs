@@ -22,6 +22,7 @@ import Math.BVH
 import Collision
 import Object
 import Universe
+import Scripting
 
 keyCB :: GLFW.KeyCallback
 keyCB wnd GLFW.Key'Escape _ _ _ = GLFW.setWindowShouldClose wnd True
@@ -62,8 +63,10 @@ main = withWindow $ \wnd -> do
             G.setUniform shdr' "tex" (0 :: G.GLint)
         (e1, obj) = simpleObject unif render xfrm nothing
     bvhRender <- drawAABB (buildBVH mesh)
+    (replThread, env) <- startReplThread
     let (e2, bvhObj) = simpleObject noUnifs bvhRender xfrm e1
     let tick e = do
+        tryRunRepl replThread env
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize wnd
         let moveit = G.rotation %~ (* axisAngle (V3 0 1 0) dt)
         let e' = e & oldXforms .~ (e^.xforms) & xforms %~ ((ix obj %~ moveit) . (ix bvhObj %~ moveit))
