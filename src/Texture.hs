@@ -1,5 +1,5 @@
 module Texture (
-    loadTex
+    loadTex, tryLoadTex
 ) where
 
 import Graphics
@@ -15,3 +15,15 @@ loadTex file = do
             textureWrapMode Texture2D S $= (Mirrored, ClampToEdge)
             textureWrapMode Texture2D T $= (Mirrored, ClampToEdge)
             return tex'
+
+tryLoadTex :: FilePath -> IO (Either String TextureObject)
+tryLoadTex file = do
+    tex <- readTexture file
+    case tex of
+        Right _ -> do
+            generateMipmap' Texture2D --the texture will be active at this point
+            textureFilter Texture2D $= ((Linear', Just Linear'), Linear')
+            textureWrapMode Texture2D S $= (Mirrored, ClampToEdge)
+            textureWrapMode Texture2D T $= (Mirrored, ClampToEdge)
+        _ -> return ()
+    return tex
