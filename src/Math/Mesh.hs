@@ -16,7 +16,6 @@ import Prelude hiding (map, length, null, foldr, foldl,
 import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Algorithms.Intro as V
 import Linear.GL
-import Linear
 import Data.Word(Word32)
 import Foreign.Storable
 import Foreign.Ptr

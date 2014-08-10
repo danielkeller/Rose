@@ -10,7 +10,6 @@ import qualified Data.Vector.Storable as V
 import Foreign.Storable
 import Foreign.Ptr(castPtr)
 import Linear.GL
-import Linear
 import Control.Applicative
 import Control.Monad
 

@@ -3,8 +3,8 @@ module Scripting (
     ReplThread,
     startReplThread,
     tryRunRepl,
-    scriptFn,
     Scriptable(), --only allow opaque values
+    script, unscript,
 ) where
 
 import Language.Scheme.Core
@@ -19,6 +19,8 @@ import Data.Char (isSpace)
 import Data.Maybe (fromMaybe)
 import Data.Dynamic
 import Control.Monad.Error
+
+import Linear.GL
 
 -- much of this module is copied from husk scheme's interpreter
 
@@ -71,7 +73,7 @@ completeScheme _ (lnL@(')':_), _) = do
   let cOpen  = countLetters '(' lnL
       cClose = countLetters ')' lnL
   if cOpen > cClose
-   then return (lnL, [HL.Completion ")" ")" False])
+   then return (lnL, [HL.Completion ")" ")" False]) --doesn't do multi line parens right
    else return (lnL, [])
 completeScheme env (lnL, lnR) = complete $ reverse $ readAtom lnL
  where
@@ -136,17 +138,21 @@ class Scriptable a where
     unscript' (Opaque a) = fromDynamic a 
     unscript' _ = Nothing
 
+    -- Number of args is already checked
+    -- the default is suitable for values
+    scriptFn' :: a -> [LispVal] -> IOThrowsError LispVal
+    scriptFn' v [] = return (script v)
+    scriptFn' _ _ = error "Bug in ScriptableFn"
+
+    numArgs :: a -> Int
+    numArgs _ = 0
+
 unscript :: forall a. Scriptable a => LispVal -> IOThrowsError a
 unscript arg = case unscript' arg of
     Just a -> return a
     Nothing -> throwError $ TypeMismatch (typeName (undefined :: a)) arg
 
-class ScriptableFn a where
-    -- Number of args is already checked
-    scriptFn' :: a -> [LispVal] -> IOThrowsError LispVal
-    numArgs :: a -> Int
-
-scriptFn :: ScriptableFn a => a -> LispVal
+scriptFn :: Scriptable a => a -> LispVal
 scriptFn = CustFunc . help
     where help f args
               | length args == expected = scriptFn' f args
@@ -159,25 +165,81 @@ instance Scriptable String where
     unscript' (String s) = Just s
     unscript' _ = Nothing
 
-instance Scriptable () where
-  typeName _ = "null"
-  script _ = nullLisp
-  unscript' _ = Just ()
+instance Scriptable CFloat where
+    typeName _ = "float"
+    script = Float . realToFrac
+    --support all numeric types, in the spirit of Scheme
+    unscript' (Float a) = Just (realToFrac a)
+    unscript' (Rational a) = Just (fromRational a)
+    unscript' (Number a) = Just (fromInteger a)
+    unscript' _ = Nothing
 
-instance Scriptable a => ScriptableFn (IO a) where
+instance Scriptable Vec3 where
+    typeName _ = "(float float float)"
+    script (V3 x y z) = List [script x, script y, script z]
+    unscript' v = do
+        let (List [x, y, z]) = v  -- remember, fail = const Nothing
+        x' <- unscript' x
+        y' <- unscript' y
+        z' <- unscript' z
+        Just (V3 x' y' z')
+
+instance Scriptable Quat where
+    typeName _ = "(float float float float)"
+    script (Quaternion w (V3 x y z)) = List [script w, script x, script y, script z]
+    unscript' v = do
+        let (List [w, x, y, z]) = v  -- remember, fail = const Nothing
+        w' <- unscript' w
+        x' <- unscript' x
+        y' <- unscript' y
+        z' <- unscript' z
+        Just (Quaternion w' (V3 x' y' z'))
+
+instance Scriptable Xform where
+    typeName _ = "((float float float) (float float float float) float)"
+    script (Xform p r s) = List [script p, script r, script s]
+    unscript' v = do
+        let (List [p, r, s]) = v
+        p' <- unscript' p
+        r' <- unscript' r
+        s' <- unscript' s
+        Just (Xform p' r' s')
+
+instance Scriptable () where
+    typeName _ = "null"
+    script _ = nullLisp
+    unscript' _ = Just ()
+
+instance (Scriptable a, Scriptable b) => Scriptable (a, b) where
+    typeName _ = "(" ++ typeName (undefined :: a) ++ " " ++ typeName (undefined :: b) ++ ")"
+    script (a, b) = List [script a, script b]
+    unscript' v = do 
+        let (List [a, b]) = v
+        a' <- unscript' a
+        b' <- unscript' b
+        Just (a', b')
+
+instance Scriptable a => Scriptable (IO a) where
+    typeName _ = "function"
+    script = scriptFn
     scriptFn' io [] = lift $ script <$> io
     scriptFn' _ _ = error "Bug in ScriptableFn"
     numArgs _ = 0
+    unscript' = undefined
 
-instance Scriptable a => ScriptableFn (IO (Either String a)) where
+instance Scriptable a => Scriptable (IO (Either String a)) where
+    typeName _ = "function"
+    script = scriptFn
     scriptFn' io [] = ErrorT $ either (Left . Default) (Right . script) <$> io
     scriptFn' _ _ = error "Bug in ScriptableFn"
     numArgs _ = 0
+    unscript' = undefined
 
-instance (Scriptable a, ScriptableFn b) => ScriptableFn (a -> b) where
+instance (Scriptable a, Scriptable b) => Scriptable (a -> b) where
+    typeName _ = "function"
+    script = scriptFn
     numArgs f = numArgs (f undefined) + 1
     scriptFn' f (a:as) = do val <- unscript a
                             scriptFn' (f val) as
     scriptFn' _ _ = error "Bug in ScriptableFn"
-
-      --CustFunc $ ErrorT $ either (Left . Default) (Right . Opaque . toDyn) <$> io str
+    unscript' = undefined
