@@ -21,4 +21,5 @@ executable Rose
                        vector, attoparsec, bytestring, GLUtil, containers, time >= 1.4.2,
                        vector-algorithms, lens, collections-api, husk-scheme, haskeline,
                        transformers, mtl
-  extra-libraries:     OpenGL32
+  if os(windows)
+    extra-libraries:     OpenGL32

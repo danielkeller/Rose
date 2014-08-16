@@ -23,11 +23,14 @@ withWindow action =
        setErrorCallback (Just (const error))
        windowHint (WindowHint'ContextVersionMajor 3)
        windowHint (WindowHint'ContextVersionMinor 3)
+       windowHint (WindowHint'OpenGLForwardCompat True)
        windowHint (WindowHint'OpenGLProfile OpenGLProfile'Core)
        setForeignEncoding utf8 --fix utf-8 chars in window title
-       when res (run =<< createWindow 1024 768 "λ 3D" Nothing Nothing)
+       if res 
+           then run =<< createWindow 1024 768 "λ 3D" Nothing Nothing
+           else putStrLn "Couldn't start glfw"
     `finally` terminate
-    where run Nothing = return ()
+    where run Nothing = putStrLn "Couldn't create window"
           run (Just wnd) = do
               makeContextCurrent (Just wnd)
               setWindowSizeCallback wnd (Just resizeCB)
