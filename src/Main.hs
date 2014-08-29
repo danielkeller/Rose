@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, TypeFamilies #-}
 module Main (
 	main
 ) where
@@ -11,6 +11,8 @@ import Control.Lens.Setter
 import Control.Lens.Getter
 import qualified Data.Map as M
 import Data.Maybe (fromJust)
+import Data.Monoid
+import Language.Scheme.Types (LispVal(..))
 
 import Window
 import Wavefront
@@ -34,17 +36,16 @@ draw e alpha = do
     mapM_ draw1 (M.keys meshes)
     where meshes = e ^. renders
           draw1 object = do
-              let shdr = objShader mesh
-                  unifset shdr' _ = do getit uniforms shdr alpha
-                                       let xfrmMat = G.toMat4 (G.slide alpha (getit oldXforms) (getit xforms))
-                                       G.setUniform shdr' "modelView" (e ^. camera !*! xfrmMat)
-              drawObject mesh unifset alpha
+              let unifset shdr alpha' = do
+                      let xfrmMat = G.toMat4 (G.slide alpha' (getit oldXforms) (getit xforms))
+                      G.setUniform shdr "modelView" (e ^. camera !*! xfrmMat)
+              drawObject mesh (getit uniforms <> UnifSetter unifset) alpha
               where getit :: Lens' Everything (M.Map Object a) -> a
                     getit l = fromJust $ e ^. l . at object
                     mesh = getit renders
 
 noUnifs :: UnifSetter
-noUnifs _ _ = return ()
+noUnifs = UnifSetter $ \_ _ -> return ()
 
 simpleObject :: UnifSetter -> Renderable -> G.Xform -> Everything -> (Everything, Object)
 simpleObject unif mesh xfrm e = (e', obj)
@@ -58,7 +59,7 @@ main = withWindow $ \wnd -> do
     (render, mesh) <- loadWavefront shdr "assets/capsule.obj"
     tex <- loadTex "assets/capsule.png"
     let xfrm = G.Xform (V3 0 0 (-3)) (axisAngle (V3 0 1 0) (pi/2)) 1
-        unif shdr' _ = do
+        unif = UnifSetter $ \shdr' _ -> do
             G.activeTexture G.$= G.TextureUnit 0
             G.textureBinding G.Texture2D G.$= Just tex
             G.setUniform shdr' "tex" (0 :: G.GLint)
@@ -67,6 +68,7 @@ main = withWindow $ \wnd -> do
     replThread <- startReplThread (engineEnv wnd)
     let (e2, bvhObj) = simpleObject noUnifs bvhRender xfrm e1
     let tick e = do
+        () <- evalInRepl replThread $ List [Atom "define", Atom "&everything", List [Atom "quote", script e]]
         tryRunRepl replThread
         (fbWidth, fbHeight) <- GLFW.getFramebufferSize wnd
         let moveit = G.rotation %~ (* axisAngle (V3 0 1 0) dt)

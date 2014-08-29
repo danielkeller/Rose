@@ -56,7 +56,7 @@ makeObject verts faces shdr = do
 
 --Shader
 drawObject :: Renderable -> UnifSetter -> DrawFun
-drawObject object unifs alpha =
+drawObject object (UnifSetter unifs) alpha =
     G.withVAO vao $ do
         G.currentProgram G.$= Just (G.program shdr)
         unifs shdr alpha

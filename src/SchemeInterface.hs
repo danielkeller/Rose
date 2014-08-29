@@ -16,6 +16,8 @@ import Scripting
 import Wavefront
 import Math.Mesh (Mesh)
 import Render (Renderable)
+import Types
+import Object
 
 deriving instance Typeable G.TextureObject
 instance Scriptable G.TextureObject where
@@ -25,6 +27,10 @@ deriving instance Typeable Mesh
 instance Scriptable Mesh where
 deriving instance Typeable Renderable
 instance Scriptable Renderable where
+deriving instance Typeable UnifSetter
+instance Scriptable UnifSetter where
+deriving instance Typeable Object
+instance Scriptable Object where
 
 engineEnv :: GLFW.Window -> Env -> IO Env
 engineEnv wnd env = do

@@ -10,7 +10,10 @@ module Universe (
 
 import Control.Lens
 import Linear (eye4)
+import Scripting
+import Language.Scheme.Types (LispVal(List))
 
+import SchemeInterface()
 import Types
 import Render
 import qualified Graphics as G
@@ -35,3 +38,16 @@ nothing :: Everything
 nothing = Everything M.empty M.empty M.empty M.empty emptyScene eye4
 
 makeLenses ''Everything
+
+instance Scriptable Everything where
+    typeName _ = "'everything'"
+    script (Everything u r x o s c) = List [script u, script r, script x, script o, script s, script c]
+    unscript' v = do
+        let (List [u, r, x, o, s, c]) = v  -- remember, fail = const Nothing
+        u' <- unscript' u
+        r' <- unscript' r
+        x' <- unscript' x
+        o' <- unscript' o
+        s' <- unscript' s
+        c' <- unscript' c
+        Just (Everything u' r' x' o' s' c')

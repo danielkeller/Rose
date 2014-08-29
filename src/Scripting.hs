@@ -3,8 +3,9 @@ module Scripting (
     ReplThread,
     startReplThread,
     tryRunRepl,
-    Scriptable(), --only allow opaque values
-    script, unscript,
+    evalInRepl,
+    Scriptable(..),
+    unscript, --script
 ) where
 
 import Language.Scheme.Core
@@ -14,6 +15,8 @@ import Language.Scheme.Variables (recExportsFromEnv)
 import qualified System.Console.Haskeline as HL
 import Control.Concurrent
 import Control.Applicative
+import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.List
 import Data.Char (isSpace)
 import Data.Maybe (fromMaybe)
@@ -58,6 +61,12 @@ startReplThread extender = do
                     Nothing -> return previous
                     Just input -> getMultiLine $ previous ++ " " ++ input
                 else return previous
+
+evalInRepl :: Scriptable a => ReplThread -> LispVal -> IO a
+evalInRepl replThread code = do
+    result <- evalLisp' (replEnv replThread) code
+    return $ either (error . show) id $ unscript =<< result
+
 
 tryRunRepl :: ReplThread -> IO ()
 tryRunRepl replThread = do
@@ -147,10 +156,10 @@ class Scriptable a where
     numArgs :: a -> Int
     numArgs _ = 0
 
-unscript :: forall a. Scriptable a => LispVal -> IOThrowsError a
+unscript :: forall a. Scriptable a => LispVal -> Either LispError a
 unscript arg = case unscript' arg of
-    Just a -> return a
-    Nothing -> throwError $ TypeMismatch (typeName (undefined :: a)) arg
+    Just a -> Right a
+    Nothing -> Left $ TypeMismatch (typeName (undefined :: a)) arg
 
 scriptFn :: Scriptable a => a -> LispVal
 scriptFn = CustFunc . help
@@ -174,8 +183,8 @@ instance Scriptable CFloat where
     unscript' (Number a) = Just (fromInteger a)
     unscript' _ = Nothing
 
-instance Scriptable Vec3 where
-    typeName _ = "(float float float)"
+instance Scriptable a => Scriptable (V3 a) where
+    typeName _ = "3-tuple"
     script (V3 x y z) = List [script x, script y, script z]
     unscript' v = do
         let (List [x, y, z]) = v  -- remember, fail = const Nothing
@@ -183,6 +192,17 @@ instance Scriptable Vec3 where
         y' <- unscript' y
         z' <- unscript' z
         Just (V3 x' y' z')
+
+instance Scriptable a => Scriptable (V4 a) where
+    typeName _ = "4-tuple"
+    script (V4 w x y z) = List [script w, script x, script y, script z]
+    unscript' v = do
+        let (List [w, x, y, z]) = v  -- remember, fail = const Nothing
+        w' <- unscript' w
+        x' <- unscript' x
+        y' <- unscript' y
+        z' <- unscript' z
+        Just (V4 w' x' y' z')
 
 instance Scriptable Quat where
     typeName _ = "(float float float float)"
@@ -219,6 +239,25 @@ instance (Scriptable a, Scriptable b) => Scriptable (a, b) where
         b' <- unscript' b
         Just (a', b')
 
+instance (Ord a, Scriptable a, Scriptable b) => Scriptable (M.Map a b) where
+    typeName _ = "hash-table"
+    script = HashTable . M.mapKeys script . M.map script
+    unscript' v = do
+        let HashTable m = v
+        fmap M.fromList $ sequence $ map unscrPair $ M.toAscList m
+        where unscrPair (a, b) = do
+                  a' <- unscript' a
+                  b' <- unscript' b
+                  return (a', b')
+
+instance (Ord a, Scriptable a) => Scriptable (S.Set a) where
+    typeName _ = "set"
+    script = List . map script . S.toAscList
+    unscript' v = do
+        let List l = v
+        l' <- mapM unscript' l
+        return (S.fromList l')
+
 instance Scriptable a => Scriptable (IO a) where
     typeName _ = "function"
     script = scriptFn
@@ -239,7 +278,7 @@ instance (Scriptable a, Scriptable b) => Scriptable (a -> b) where
     typeName _ = "function"
     script = scriptFn
     numArgs f = numArgs (f undefined) + 1
-    scriptFn' f (a:as) = do val <- unscript a
+    scriptFn' f (a:as) = do val <- ErrorT $ return $ unscript a
                             scriptFn' (f val) as
     scriptFn' _ _ = error "Bug in ScriptableFn"
     unscript' = undefined
